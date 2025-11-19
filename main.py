@@ -16,7 +16,7 @@ class State(TypedDict):
 graph_builder = StateGraph(State)
 
 def chatbot(state: State):
-    return {"messsages":[llm.invoke(state["messages"])]}
+    return {"messages":[llm.invoke(state["messages"])]}
 
 
 
