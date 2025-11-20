@@ -99,7 +99,22 @@ graph_builder.add_edge(start_key="logical", end_key=END)
 
 graph = graph_builder.compile()
 
-user_input = input("Enter A Message:")
-state = graph.invoke({"messages":[{"role":"user","content":user_input}]})
+def run_chatbot():
+    state = {"messages":[],"message_type":None}
 
-print(state["messages"][-1].content)
+    while True :
+        user_input = input("Enter A Message:")
+        if user_input == "exit":
+            print("bye")
+            break
+        state["messages"] =state.get("messages",[])+ [
+            {"role":"user","content":user_input}
+        ]
+
+        state = graph.invoke(state)
+        if state.get("messages") and len(state["messages"]) > 0 :
+            last_message=state["messages"][-1]
+            print(f"Assistant: {last_message.content}")
+    
+if __name__ == "__main__":
+    run_chatbot()
