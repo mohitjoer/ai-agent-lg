@@ -5,10 +5,19 @@ from langgraph.graph.message import add_messages
 from langchain.chat_models import init_chat_model
 from pydantic import BaseModel , Field
 from typing_extensions import TypedDict
+from pymongo import MongoClient
+from datetime import datetime, UTC
+import os
 
 load_dotenv()
 
-llm =  init_chat_model("gpt-4")
+llm =  init_chat_model("gpt-4o")  # Changed to gpt-4o which supports structured outputs
+
+# MongoDB setup
+mongo_client = MongoClient(os.getenv("MONGODB_URI", "mongodb://localhost:27017/"))
+db = mongo_client["chatbot_db"]
+conversations_collection = db["conversations"]
+messages_collection = db["messages"]
 
 class MessageClassifier(BaseModel):
     message_type : Literal["emotional","logical"] = Field(
@@ -71,7 +80,7 @@ def logical_agent(state : State):
         {"role":"system",
          "content":"""you are a pureely logical assistant. Focus only on facts and information. 
             provide clear, concise answers based on logic and evidence.
-            do not address emptions or provide emotional support .
+            do not address emotions or provide emotional support .
             be direct and straightforward in your responses."""
         }
     ]
@@ -110,9 +119,49 @@ graph_builder.add_edge(start_key="logical", end_key=END)
 
 graph = graph_builder.compile()
 
+def save_conversation_to_db(state: State, session_id: str):
+    """Save conversation state to MongoDB"""
+    conversation_data = {
+        "session_id": session_id,
+        "message_type": state.get("message_type"),
+        "timestamp": datetime.now(UTC),  # Fixed deprecation warning
+        "messages": []
+    }
+    
+    for msg in state["messages"]:
+        if isinstance(msg, dict):
+            message_entry = {
+                "role": msg.get("role", "user"),
+                "content": msg.get("content"),
+                "timestamp": datetime.now(UTC)  # Fixed deprecation warning
+            }
+        else:
+            role = "assistant" if msg.type == "ai" else "user"
+            message_entry = {
+                "role": role,
+                "content": msg.content,
+                "timestamp": datetime.now(UTC)  # Fixed deprecation warning
+            }
+        conversation_data["messages"].append(message_entry)
+    
+    # Update or insert conversation
+    conversations_collection.update_one(
+        {"session_id": session_id},
+        {"$set": conversation_data},
+        upsert=True
+    )
+
 def run_chatbot():
     state = {"messages":[],"message_type":None}
-
+    existing_conversation = conversations_collection.find_one({"session_id": "single_session"})
+    if existing_conversation and existing_conversation.get("messages"):
+        state["messages"] = [
+            {"role": msg["role"], "content": msg["content"]} 
+            for msg in existing_conversation["messages"]
+        ]
+        print("Loaded previous conversation history.")
+    
+    session_id = "single_session"
     while True :
         user_input = input("Enter A Message:")
         if user_input == "exit":
@@ -122,6 +171,10 @@ def run_chatbot():
         state["messages"].append({"role":"user","content":user_input})
 
         state = graph.invoke(state)
+        
+        # Save to MongoDB after each interaction
+        save_conversation_to_db(state, session_id)
+        
         if state.get("messages") and len(state["messages"]) > 0 :
             last_message=state["messages"][-1]
             print(f"Assistant: {last_message.content}")
