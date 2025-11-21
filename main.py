@@ -45,35 +45,46 @@ def router(state : State):
 
 
 def therapist_agent(state : State):
-    last_message  = state["messages"][-1]
-
     messages = [
         {"role":"system",
          "content":"""you are a compassionate therapist. Focus on the emotional asoect of the user's message.
          show empathy, validate their feelings, and help them process their emotions.
          ask thoughful questions to help them explore their fellings more deeply.
          avoid giving logical solutions unless explicitly asked."""
-        },
-        {"role":"user",
-          "content": last_message.content
         }
     ]
+    
+    # Handle both dict and LangChain message objects
+    for msg in state["messages"]:
+        if isinstance(msg, dict):
+            messages.append({"role": msg.get("role", "user"), "content": msg.get("content")})
+        else:
+            # LangChain message object
+            role = "assistant" if msg.type == "ai" else "user"
+            messages.append({"role": role, "content": msg.content})
+    
     reply = llm.invoke(messages)
     return {"messages":[{"role":"assistant","content": reply.content}]}
 
 def logical_agent(state : State):
-    last_message  = state["messages"][-1]
     messages = [
         {"role":"system",
          "content":"""you are a pureely logical assistant. Focus only on facts and information. 
             provide clear, concise answers based on logic and evidence.
             do not address emptions or provide emotional support .
             be direct and straightforward in your responses."""
-        },
-        {"role":"user",
-          "content": last_message.content
         }
     ]
+
+    # Handle both dict and LangChain message objects
+    for msg in state["messages"]:
+        if isinstance(msg, dict):
+            messages.append({"role": msg.get("role", "user"), "content": msg.get("content")})
+        else:
+            # LangChain message object
+            role = "assistant" if msg.type == "ai" else "user"
+            messages.append({"role": role, "content": msg.content})
+    
     reply = llm.invoke(messages)
     return {"messages":[{"role":"assistant","content": reply.content}]}
 
@@ -107,9 +118,8 @@ def run_chatbot():
         if user_input == "exit":
             print("bye")
             break
-        state["messages"] =state.get("messages",[])+ [
-            {"role":"user","content":user_input}
-        ]
+        
+        state["messages"].append({"role":"user","content":user_input})
 
         state = graph.invoke(state)
         if state.get("messages") and len(state["messages"]) > 0 :

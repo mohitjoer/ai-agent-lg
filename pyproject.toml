@@ -8,5 +8,6 @@ dependencies = [
     "ipykernel>=7.1.0",
     "langchain[openai]>=1.0.7",
     "langgraph>=1.0.3",
+    "pymongo>=4.15.4",
     "python-dotenv>=1.2.1",
 ]
