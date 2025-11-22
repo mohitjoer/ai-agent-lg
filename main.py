@@ -84,12 +84,10 @@ def logical_agent(state : State):
         }
     ]
 
-    # Handle both dict and LangChain message objects
     for msg in state["messages"]:
         if isinstance(msg, dict):
             messages.append({"role": msg.get("role", "user"), "content": msg.get("content")})
         else:
-            # LangChain message object
             role = "assistant" if msg.type == "ai" else "user"
             messages.append({"role": role, "content": msg.content})
     
@@ -123,7 +121,7 @@ def save_conversation_to_db(state: State, session_id: str):
     conversation_data = {
         "session_id": session_id,
         "message_type": state.get("message_type"),
-        "timestamp": datetime.now(UTC),  # Fixed deprecation warning
+        "timestamp": datetime.now(UTC),  
         "messages": []
     }
     
@@ -132,18 +130,17 @@ def save_conversation_to_db(state: State, session_id: str):
             message_entry = {
                 "role": msg.get("role", "user"),
                 "content": msg.get("content"),
-                "timestamp": datetime.now(UTC)  # Fixed deprecation warning
+                "timestamp": datetime.now(UTC)  
             }
         else:
             role = "assistant" if msg.type == "ai" else "user"
             message_entry = {
                 "role": role,
                 "content": msg.content,
-                "timestamp": datetime.now(UTC)  # Fixed deprecation warning
+                "timestamp": datetime.now(UTC)  
             }
         conversation_data["messages"].append(message_entry)
     
-    # Update or insert conversation
     conversations_collection.update_one(
         {"session_id": session_id},
         {"$set": conversation_data},
@@ -171,7 +168,7 @@ def run_chatbot():
 
         state = graph.invoke(state)
         
-        # Save to MongoDB after each interaction
+    
         save_conversation_to_db(state, session_id)
         
         if state.get("messages") and len(state["messages"]) > 0 :
