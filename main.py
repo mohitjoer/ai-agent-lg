@@ -11,10 +11,9 @@ import os
 
 load_dotenv()
 
-llm =  init_chat_model("gpt-4o")  # Changed to gpt-4o which supports structured outputs
+llm =  init_chat_model("gpt-4o") 
 
-# MongoDB setup
-mongo_client = MongoClient(os.getenv("MONGODB_URI", "mongodb://localhost:27017/"))
+mongo_client = MongoClient(os.getenv("MONGODB_URI"))
 db = mongo_client["chatbot_db"]
 conversations_collection = db["conversations"]
 messages_collection = db["messages"]
