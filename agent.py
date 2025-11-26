@@ -11,9 +11,9 @@ import os
 
 load_dotenv()
 
-llm =  init_chat_model("gpt-4o") 
+llm =  init_chat_model("gpt-4o")
 
-mongo_client = MongoClient(os.getenv("MONGODB_URI"))
+mongo_client = MongoClient(os.getenv("MONGODB_URI", "mongodb://localhost:27017/"))
 db = mongo_client["chatbot_db"]
 conversations_collection = db["conversations"]
 messages_collection = db["messages"]
@@ -62,12 +62,10 @@ def therapist_agent(state : State):
         }
     ]
     
-    # Handle both dict and LangChain message objects
     for msg in state["messages"]:
         if isinstance(msg, dict):
             messages.append({"role": msg.get("role", "user"), "content": msg.get("content")})
         else:
-            # LangChain message object
             role = "assistant" if msg.type == "ai" else "user"
             messages.append({"role": role, "content": msg.content})
     
@@ -96,7 +94,6 @@ def logical_agent(state : State):
 
 graph_builder = StateGraph(State)
 
-
 graph_builder.add_node("classifier" , classify_message)
 graph_builder.add_node("router" , router)
 graph_builder.add_node("therapist" , therapist_agent)
@@ -121,7 +118,7 @@ def save_conversation_to_db(state: State, session_id: str):
     conversation_data = {
         "session_id": session_id,
         "message_type": state.get("message_type"),
-        "timestamp": datetime.now(UTC),  
+        "timestamp": datetime.now(UTC),
         "messages": []
     }
     
@@ -130,14 +127,14 @@ def save_conversation_to_db(state: State, session_id: str):
             message_entry = {
                 "role": msg.get("role", "user"),
                 "content": msg.get("content"),
-                "timestamp": datetime.now(UTC)  
+                "timestamp": datetime.now(UTC)
             }
         else:
             role = "assistant" if msg.type == "ai" else "user"
             message_entry = {
                 "role": role,
                 "content": msg.content,
-                "timestamp": datetime.now(UTC)  
+                "timestamp": datetime.now(UTC)
             }
         conversation_data["messages"].append(message_entry)
     
@@ -168,7 +165,6 @@ def run_chatbot():
 
         state = graph.invoke(state)
         
-    
         save_conversation_to_db(state, session_id)
         
         if state.get("messages") and len(state["messages"]) > 0 :

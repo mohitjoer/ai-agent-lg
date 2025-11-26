@@ -10,4 +10,5 @@ dependencies = [
     "langgraph>=1.0.3",
     "pymongo>=4.15.4",
     "python-dotenv>=1.2.1",
+    "python-telegram-bot>=22.5",
 ]
