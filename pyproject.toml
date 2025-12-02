@@ -9,6 +9,7 @@ dependencies = [
     "ipykernel>=7.1.0",
     "langchain[openai]>=1.0.7",
     "langgraph>=1.0.3",
+    "pygithub>=2.8.1",
     "pymongo>=4.15.4",
     "python-dotenv>=1.2.1",
     "python-telegram-bot>=22.5",

@@ -6,9 +6,9 @@ from langgraph.graph.message import add_messages
 
 class MessageClassifier(BaseModel):
     """Schema for message classification"""
-    message_type: Literal["emotional", "logical"] = Field(
+    message_type: Literal["Github", "logical"] = Field(  
         ...,
-        description="Classify if the message requires an emotional (therapist) or logical response"
+        description="Classify if the message requires GitHub analysis or logical response"
     )
 
 class State(TypedDict):
