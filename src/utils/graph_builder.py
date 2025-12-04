@@ -1,4 +1,5 @@
 from langgraph.graph import StateGraph, START, END
+from src.agents.github_user import github_user_agent
 from src.models.schemas import State
 from src.agents.classifier import classify_message
 from src.agents.router import router
@@ -13,6 +14,7 @@ def build_graph():
     graph_builder.add_node("classifier", classify_message)
     graph_builder.add_node("router", router)
     graph_builder.add_node("github", github_agent)  
+    graph_builder.add_node("github_user", github_user_agent)  
     graph_builder.add_node("logical", logical_agent)
     
     # Add edges
@@ -23,10 +25,11 @@ def build_graph():
     graph_builder.add_conditional_edges(
         "router",
         lambda state: state.get("next"),
-        path_map={"github": "github", "logical": "logical"}  
+        path_map={"github": "github","github_user": "github_user", "logical": "logical"}  
     )
     
     graph_builder.add_edge(start_key="github", end_key=END)  
+    graph_builder.add_edge(start_key="github_user", end_key=END)
     graph_builder.add_edge(start_key="logical", end_key=END)
     
     return graph_builder.compile()

@@ -15,14 +15,23 @@ def run_chatbot():
         ]
         print("✅ Loaded previous conversation history.\n")
     
+    print("=" * 60)
     print("🤖 AI Assistant Console")
-    print("Type 'exit' to quit, 'clear' to clear history, 'stats' for statistics\n")
+    print("=" * 60)
+    print("\n📌 **Capabilities:**")
+    print("  👤 GitHub User Analysis - Send profile URL")
+    print("  🔍 GitHub Repo Analysis - Send repo URL")
+    print("  🧠 Logical Assistant - Ask any question\n")
+  
     
     while True:
-        user_input = input("You: ")
+        user_input = input("You: ").strip()
+        
+        if not user_input:
+            continue
         
         if user_input.lower() == "exit":
-            print("👋 Goodbye!")
+            print("\n👋 Goodbye! Have a great day!\n")
             break
         
         if user_input.lower() == "clear":
@@ -34,28 +43,63 @@ def run_chatbot():
         if user_input.lower() == "stats":
             stats = db_client.get_conversation_stats(session_id)
             if stats:
-                print(f"\n📊 Statistics:")
-                print(f"Total Messages: {stats['total_messages']}")
-                print(f"Your Messages: {stats['user_messages']}")
-                print(f"Assistant Messages: {stats['assistant_messages']}\n")
+                print("\n" + "=" * 40)
+                print("📊 Conversation Statistics")
+                print("=" * 40)
+                print(f"  Total Messages: {stats['total_messages']}")
+                print(f"  Your Messages: {stats['user_messages']}")
+                print(f"  Assistant Messages: {stats['assistant_messages']}")
+                print("=" * 40 + "\n")
             else:
-                print("No conversation history found.\n")
+                print("❌ No conversation history found.\n")
             continue
+        
         
         state["messages"].append({"role": "user", "content": user_input})
         
-        # Invoke the graph
-        state = graph.invoke(state)
+        print("\n⏳ Processing...\n")
         
-        # Save to database
-        db_client.save_conversation(state, session_id)
+        try:
+            # Invoke the graph
+            state = graph.invoke(state)
+            
+            # Save to database
+            db_client.save_conversation(state, session_id)
+            
+            # Display response
+            if state.get("messages") and len(state["messages"]) > 0:
+                last_message = state["messages"][-1]
+                message_type = state.get("message_type", "logical")
+                
+                # Select emoji based on message type
+                if message_type == "Github_user":
+                    emoji = "👤"
+                    type_label = "User Analysis"
+                elif message_type == "Github":
+                    emoji = "🔍"
+                    type_label = "Repo Analysis"
+                else:
+                    emoji = "🧠"
+                    type_label = "Logical"
+                
+                print("-" * 60)
+                print(f"{emoji} Assistant ({type_label}):")
+                print("-" * 60)
+                
+                # Get content
+                if isinstance(last_message, dict):
+                    content = last_message.get("content")
+                else:
+                    content = last_message.content
+                
+                print(f"\n{content}\n")
+                print("-" * 60 + "\n")
+            else:
+                print("❌ Sorry, I couldn't process your message.\n")
         
-        # Display response
-        if state.get("messages") and len(state["messages"]) > 0:
-            last_message = state["messages"][-1]
-            message_type = state.get("message_type", "logical")
-            emoji = "❤️" if message_type == "emotional" else "🧠"
-            print(f"{emoji} Assistant: {last_message.content}\n")
+        except Exception as e:
+            print(f"\n❌ Error: {e}")
+            print("Please try again or type 'help' for examples.\n")
 
 if __name__ == "__main__":
     run_chatbot()

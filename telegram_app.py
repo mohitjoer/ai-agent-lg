@@ -23,7 +23,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "Welcome back! 👋\n\n"
             "I've loaded your previous conversation history.\n"
-            "I can analyze GitHub repositories and provide logical assistance based on your needs."
+            "I can analyze GitHub repositories, user profiles, and provide logical assistance!"
         )
     else:
         user_sessions[user_id] = {
@@ -31,11 +31,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "message_type": None
         }
         await update.message.reply_text(
-            "Hello! 👋 I'm your AI assistant with dual capabilities:\n\n"
+            "Hello! 👋 I'm your AI assistant with multiple capabilities:\n\n"
+            "👤 **GitHub User Analyzer**\n"
+            "Send a profile URL like `https://github.com/username`\n\n"
             "🔍 **GitHub Repository Analyzer**\n"
-            "Send me a GitHub repo URL to get detailed code quality analysis\n\n"
+            "Send a repo URL like `https://github.com/owner/repo`\n\n"
             "🧠 **Logical Assistant**\n"
-            "Ask me questions about facts, information, or practical advice\n\n"
+            "Ask me any general questions\n\n"
             "**Commands:**\n"
             "/start - Start conversation\n"
             "/clear - Clear history\n"
@@ -86,12 +88,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 response_content = last_message.content
             
+            # Select emoji based on message type
             message_type = result.get("message_type", "logical")
-            emoji = "🔍" if message_type == "Github" else "🧠"
+            if message_type == "Github_user":
+                emoji = "👤"
+            elif message_type == "Github":
+                emoji = "🔍"
+            else:
+                emoji = "🧠"
             
             # Split long messages for Telegram (max 4096 characters)
             if len(response_content) > 4000:
-                # Split into chunks
                 chunks = [response_content[i:i+4000] for i in range(0, len(response_content), 4000)]
                 for i, chunk in enumerate(chunks):
                     if i == 0:
@@ -109,9 +116,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         traceback.print_exc()
         await update.message.reply_text(
             "❌ Sorry, something went wrong. Please try again.\n\n"
-            "If you're analyzing a GitHub repo, make sure:\n"
+            "Make sure:\n"
             "- The URL is valid\n"
-            "- The repository is public\n"
+            "- The profile/repository is public\n"
             "- You have a stable internet connection"
         )
 
@@ -135,31 +142,25 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🤖 **AI Assistant Help**\n\n"
         "**I can help you with:**\n\n"
+        "👤 **GitHub User Analysis**\n"
+        "Send a profile URL:\n"
+        "`https://github.com/username`\n"
+        "Get detailed developer profile analysis\n\n"
         "🔍 **GitHub Repository Analysis**\n"
-        "Send a GitHub repo URL like:\n"
-        "`https://github.com/owner/repo`\n\n"
-        "I'll analyze and grade it on:\n"
-        "• Code Quality\n"
-        "• Reliability & Testing\n"
-        "• Architecture & Scalability\n"
-        "• Documentation\n"
-        "• Security\n"
-        "• And 5 more categories!\n\n"
+        "Send a repo URL:\n"
+        "`https://github.com/owner/repo`\n"
+        "Get code quality grades on 10 categories\n\n"
         "🧠 **Logical Assistance**\n"
-        "Ask me about:\n"
-        "• Programming concepts\n"
-        "• Technical questions\n"
-        "• General information\n"
-        "• Problem solving\n\n"
+        "Ask me general questions\n\n"
         "**Commands:**\n"
-        "/start - Start/restart conversation\n"
-        "/clear - Clear conversation history\n"
-        "/stats - View conversation statistics\n"
-        "/help - Show this help message\n\n"
+        "/start - Start conversation\n"
+        "/clear - Clear history\n"
+        "/stats - View statistics\n"
+        "/help - Show this help\n\n"
         "**Examples:**\n"
-        "• `https://github.com/facebook/react`\n"
-        "• What is the best way to learn Python?\n"
-        "• Explain how REST APIs work"
+        "• `https://github.com/torvalds` - User profile\n"
+        "• `https://github.com/facebook/react` - Repo analysis\n"
+        "• `What is machine learning?` - General question"
     )
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
@@ -167,16 +168,17 @@ async def example_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show example usage"""
     example_text = (
         "💡 **Example Queries**\n\n"
-        "**GitHub Analysis:**\n"
-        "• `https://github.com/torvalds/linux`\n"
-        "• `https://github.com/microsoft/vscode`\n"
-        "• `https://github.com/your-username/your-repo`\n\n"
+        "**GitHub User Profile:**\n"
+        "• `https://github.com/torvalds`\n"
+        "• `https://github.com/gaearon`\n\n"
+        "**GitHub Repository:**\n"
+        "• `https://github.com/facebook/react`\n"
+        "• `https://github.com/microsoft/vscode`\n\n"
         "**General Questions:**\n"
         "• What is machine learning?\n"
-        "• How do I optimize database queries?\n"
-        "• Explain Docker containers\n"
-        "• Best practices for API design\n\n"
-        "Just send your message and I'll automatically detect if it's a GitHub URL or a general question!"
+        "• How do databases work?\n"
+        "• Explain Docker containers\n\n"
+        "I'll automatically detect what you need!"
     )
     await update.message.reply_text(example_text, parse_mode='Markdown')
 
@@ -186,28 +188,24 @@ def main():
     
     if not token:
         print("❌ Error: TELEGRAM_BOT_TOKEN not found in .env file")
-        print("Please add TELEGRAM_BOT_TOKEN=your_token to .env")
         return
     
     application = Application.builder().token(token).build()
     
-    # Add command handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("clear", clear_history))
     application.add_handler(CommandHandler("stats", get_stats))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("example", example_command))
-    
-    # Add message handler
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("=" * 50)
     print("✅ Telegram Bot is running...")
-    print("🔍 GitHub Analyzer: Ready")
+    print("👤 GitHub User Analyzer: Ready")
+    print("🔍 GitHub Repo Analyzer: Ready")
     print("🧠 Logical Assistant: Ready")
     print("=" * 50)
     print("Press Ctrl+C to stop.")
-    print("=" * 50)
     
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 

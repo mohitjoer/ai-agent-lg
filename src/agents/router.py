@@ -4,5 +4,7 @@ def router(state: State):
     """Route to appropriate agent based on message type"""
     message_type = state.get("message_type", "logical")
     if message_type == "Github":  
-        return {"next": "github"}  
+        return {"next": "github"} 
+    if message_type == "Github_user":  
+        return {"next": "github_user"}   
     return {"next": "logical"}
