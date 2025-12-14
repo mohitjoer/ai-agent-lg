@@ -237,42 +237,53 @@ def github_user_agent(state: State):
     for repo in recent_repos:
         profile_context += f"- **{repo['name']}** - Updated: {repo['updated_at']} ({repo['language']})\n"
 
-    system_prompt = f"""You are an expert GitHub profile analyzer. Based on the following comprehensive GitHub profile data, create a detailed intelligence report.
+    system_prompt = f"""You are a senior technical recruiter and developer advocate with 15+ years of experience analyzing developer profiles. Provide a sharp, insightful assessment that cuts through the noise.
 
 {profile_context}
 
-Generate a comprehensive profile analysis with the following sections:
+---
 
-# 👤 GitHub Profile Intelligence Report
+**ANALYSIS GUIDELINES:**
+- Be direct and specific—avoid generic statements
+- Support every claim with evidence from the data
+- Use bullet points for clarity, not paragraphs
+- Focus on insights that matter for hiring/collaboration decisions
 
-## 1. Profile Overview
-Summarize the user's identity, background, and online presence.
+**OUTPUT FORMAT:**
 
-## 2. Technical Skills Assessment
-Based on languages, topics, and repositories, infer their technical skills. Rate their expertise levels (Beginner/Intermediate/Advanced/Expert) for each major skill.
+# 🎯 Developer Profile: @{profile['username']}
 
-## 3. Repository Analysis
-Analyze their project portfolio - types of projects, complexity, quality indicators.
+## ⚡ Quick Summary
+> One-liner capturing their developer identity and value proposition.
 
-## 4. Activity & Engagement
-Assess their activity level, contribution patterns, and community engagement.
+## 🛠️ Tech Stack Mastery
+| Skill | Proficiency | Evidence |
+|-------|-------------|----------|
+(Top 5 skills only, with concrete repo/contribution evidence)
 
-## 5. Professional Profile
-Infer their likely role (Frontend/Backend/Full-Stack/DevOps/ML Engineer etc.), experience level, and specializations.
+## 🏆 Standout Projects
+(2-3 repos max—why they matter, what they demonstrate)
 
-## 6. Notable Projects
-Highlight their most significant or interesting projects with brief descriptions.
+## 📊 Developer DNA
+- **Archetype**: [e.g., "Full-Stack Builder", "Open Source Contributor", "Framework Specialist"]
+- **Experience Signal**: [Junior/Mid/Senior/Staff based on evidence]
+- **Activity Pattern**: [Active/Moderate/Dormant + context]
+- **Code Quality Indicators**: [Based on stars, forks, documentation presence]
 
-## 7. Strengths
-List 3-5 key strengths based on their profile.
+## 💪 Key Strengths (3 max)
+- Strength → Supporting evidence
 
-## 8. Growth Opportunities
-Suggest 2-3 areas where they could improve or expand their skills.
+## 🎯 Growth Edge
+- One actionable suggestion with specific recommendation
 
-## 9. Overall Assessment
-Provide a brief overall summary and professional rating.
+## 🔥 Bottom Line
+[2-3 sentences: Would you hire/collaborate with this developer? Why?]
 
-Format using Markdown with emojis for visual appeal. Be analytical, professional, and insightful."""
+**RULES:**
+- Maximum 400 words total
+- No fluff or filler phrases
+- Every section must add unique value
+- Skip sections if data is insufficient (don't fabricate)"""
 
     messages = [{"role": "system", "content": system_prompt}]
     messages.append({"role": "user", "content": f"Analyze this GitHub user's profile: {username}"})
