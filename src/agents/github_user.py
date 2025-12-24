@@ -15,12 +15,26 @@ def extract_github_username(text: str) -> str:
     if url_match:
         return url_match.group(1)
     
-    # Match just username (alphanumeric with hyphens)
-    username_pattern = r'@?([\w-]+)'
+    # Look for "user <username>" pattern, skipping filler words like "name", "account", etc.
+   
+    user_pattern = r'(?:user|username|profile)(?:\s+(?:name|account|id|of|for))*\s+(@?[\w-]+)'
+    user_match = re.search(user_pattern, text, re.IGNORECASE)
+    if user_match:
+        return user_match.group(1).lstrip('@')
+    
+    # Look for @username pattern
+    at_pattern = r'@([\w-]+)'
+    at_match = re.search(at_pattern, text)
+    if at_match:
+        return at_match.group(1)
+    
+    # Last resort: extract the last valid username-like word (not common words)
+    common_words = {'can', 'you', 'get', 'data', 'on', 'the', 'a', 'an', 'is', 'are', 'for', 'from', 'to', 'with', 'by', 'of', 'in', 'at', 'or', 'and', 'but', 'if', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can', 'analyze', 'check', 'show', 'tell', 'give', 'provide', 'fetch', 'pull', 'get', 'find', 'search', 'look', 'github', 'profile', 'user', 'username', 'account', 'info', 'information', 'details', 'stats', 'statistics', 'name', 'me', 'about', 'help'}
     words = text.split()
-    for word in words:
-        if re.match(r'^@?[\w-]+$', word):
-            return word.lstrip('@')
+    for word in reversed(words):
+        clean_word = word.lstrip('@').rstrip('.,!?;:')
+        if re.match(r'^[\w-]+$', clean_word) and clean_word.lower() not in common_words:
+            return clean_word
     
     return None
 
@@ -94,7 +108,6 @@ def fetch_user_data(username: str):
                     "updated_at": repo.updated_at.strftime("%Y-%m-%d"),
                     "pushed_at": repo.pushed_at.strftime("%Y-%m-%d") if repo.pushed_at else "Never",
                     "language": repo.language or "Not specified",
-                    "stars": repo.stargazers_count,
                     "forks": repo.forks_count,
                     "open_issues": repo.open_issues_count,
                     "size": repo.size,
@@ -178,12 +191,6 @@ def github_user_agent(state: State):
     # Top languages
     top_languages = list(user_data["languages"].keys())[:10]
     
-    # Top repositories by stars
-    top_repos = sorted(user_data["repositories"], key=lambda x: x["stars"], reverse=True)[:5]
-    
-    # Most recent repositories
-    recent_repos = sorted(user_data["repositories"], key=lambda x: x["updated_at"], reverse=True)[:5]
-    
     # Build detailed context
     profile_context = f"""
 # GitHub User Profile Data
@@ -208,7 +215,6 @@ def github_user_agent(state: State):
 - **Public Gists**: {profile['public_gists']}
 
 ## Contribution Stats
-- **Total Stars Earned**: {user_data['contribution_stats']['total_stars']}
 - **Total Forks**: {user_data['contribution_stats']['total_forks']}
 - **Total Open Issues**: {user_data['contribution_stats']['total_issues']}
 
@@ -220,26 +226,6 @@ def github_user_agent(state: State):
 
 ## Organizations
 {', '.join([org['name'] for org in user_data['organizations']]) if user_data['organizations'] else 'No public organizations'}
-
-## Top Repositories by Stars
-"""
-    
-    for repo in top_repos:
-        profile_context += f"""
-### {repo['name']}
-- Description: {repo['description']}
-- ⭐ Stars: {repo['stars']} | 🍴 Forks: {repo['forks']}
-- Language: {repo['language']}
-- Last Updated: {repo['updated_at']}
-"""
-
-    profile_context += "\n## Most Recent Activity\n"
-    for repo in recent_repos:
-        profile_context += f"- **{repo['name']}** - Updated: {repo['updated_at']} ({repo['language']})\n"
-
-    system_prompt = f"""You are a senior technical recruiter and developer advocate with 15+ years of experience analyzing developer profiles. Provide a sharp, insightful assessment that cuts through the noise.
-
-{profile_context}
 
 ---
 
@@ -261,30 +247,19 @@ def github_user_agent(state: State):
 |-------|-------------|----------|
 (Top 5 skills only, with concrete repo/contribution evidence)
 
-## 🏆 Standout Projects
-(2-3 repos max—why they matter, what they demonstrate)
-
 ## 📊 Developer DNA
 - **Archetype**: [e.g., "Full-Stack Builder", "Open Source Contributor", "Framework Specialist"]
 - **Experience Signal**: [Junior/Mid/Senior/Staff based on evidence]
 - **Activity Pattern**: [Active/Moderate/Dormant + context]
 - **Code Quality Indicators**: [Based on stars, forks, documentation presence]
 
-## 💪 Key Strengths (3 max)
-- Strength → Supporting evidence
-
-## 🎯 Growth Edge
-- One actionable suggestion with specific recommendation
-
-## 🔥 Bottom Line
-[2-3 sentences: Would you hire/collaborate with this developer? Why?]
-
 **RULES:**
-- Maximum 400 words total
+- Maximum 200 words total
 - No fluff or filler phrases
 - Every section must add unique value
 - Skip sections if data is insufficient (don't fabricate)"""
 
+    system_prompt = profile_context
     messages = [{"role": "system", "content": system_prompt}]
     messages.append({"role": "user", "content": f"Analyze this GitHub user's profile: {username}"})
     

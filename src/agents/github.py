@@ -3,6 +3,7 @@ from src.models.schemas import State
 from src.config.settings import settings
 from github import Github
 import re
+from difflib import SequenceMatcher
 
 llm = init_chat_model(settings.LLM_MODEL)
 
@@ -16,8 +17,104 @@ def extract_github_url(text: str) -> tuple:
         return match.group(0), owner, repo
     return None, None, None
 
-def fetch_repo_data(owner: str, repo: str):
-    """Fetch repository data using GitHub API"""
+def extract_owner_and_repo(text: str) -> tuple:
+    """Extract owner and repo from natural language input
+    Examples: 
+    - "repo Freelance-web by mohitjoer"
+    - "repo of mohitjoer and repo name gose by the name of freelance-web"
+    - "owner is torvalds and repo is linux"
+    - "get me data on the repo Freelance-web by mohitjoer"
+    """
+    # Pattern 1: "repo <name> by <owner>" or "data on the repo <name> by <owner>"
+    repo_by_owner_pattern = r'repo\s+(@?[\w-]+)\s+by\s+(@?[\w-]+)'
+    match = re.search(repo_by_owner_pattern, text, re.IGNORECASE)
+    if match:
+        repo = match.group(1).lstrip('@')
+        owner = match.group(2).lstrip('@')
+        return owner, repo
+    
+    # Pattern 2: "owner ... is/of <owner> ... repo ... is/name ... <repo>"
+    owner_repo_pattern = r'(?:owner|user|author)(?:\s+\w+)*?\s+(?:is|of|=)\s+(@?[\w-]+)(?:.*?)(?:repo|repository)(?:\s+\w+)*?\s+(?:is|name|=|called|by\s+the\s+name\s+of)\s+(@?[\w-]+)'
+    match = re.search(owner_repo_pattern, text, re.IGNORECASE)
+    if match:
+        owner = match.group(1).lstrip('@')
+        repo = match.group(2).lstrip('@')
+        return owner, repo
+    
+    # Pattern 3: "repo of <owner>/<repo>" or "repo of <owner> repo <repo>"
+    owner_slash_repo_pattern = r'repo\s+(?:of\s+)?(@?[\w-]+)[/\s]+(@?[\w-]+)'
+    match = re.search(owner_slash_repo_pattern, text, re.IGNORECASE)
+    if match:
+        owner = match.group(1).lstrip('@')
+        repo = match.group(2).lstrip('@')
+        return owner, repo
+    
+    # Pattern 4: Look for common keywords and extract last two valid words
+    common_words = {'repo', 'repository', 'owner', 'user', 'author', 'of', 'is', 'the', 'and', 'a', 'an', 'name', 'called', 'by', 'please', 'analyze', 'check', 'look', 'at', 'fetch', 'get', 'show', 'github', 'data', 'me', 'on', 'for', 'about'}
+    words = text.split()
+    valid_words = []
+    for word in words:
+        clean_word = word.lstrip('@').rstrip('.,!?;:')
+        if re.match(r'^[\w-]+$', clean_word) and clean_word.lower() not in common_words:
+            valid_words.append(clean_word)
+    
+    if len(valid_words) >= 2:
+        # Return last two valid words as owner and repo
+        return valid_words[-2], valid_words[-1]
+    elif len(valid_words) == 1:
+        return None, valid_words[0]
+    
+    return None, None
+
+def search_user_repos(owner: str, partial_repo_name: str):
+    """Search all public repos of a user and find the most related one
+    
+    Args:
+        owner: GitHub username
+        partial_repo_name: Partial or full repository name to match
+    
+    Returns:
+        Matched repository object or None
+    """
+    try:
+        g = Github(settings.GITHUB_TOKEN)
+        user = g.get_user(owner)
+        
+        # Get all public repositories
+        repos = user.get_repos(type="public")
+        
+        best_match = None
+        best_score = 0
+        
+        for repo in repos:
+            # Calculate similarity score using SequenceMatcher
+            similarity = SequenceMatcher(None, partial_repo_name.lower(), repo.name.lower()).ratio()
+            
+            if similarity > best_score:
+                best_score = similarity
+                best_match = repo
+        
+        # Only return if similarity score is reasonable (> 0.4 threshold)
+        if best_match and best_score > 0.4:
+            return best_match
+        
+        return None
+    
+    except Exception as e:
+        print(f"Error searching user repos: {e}")
+        return None
+
+def fetch_repo_data(owner: str, repo: str, search_fallback: bool = True):
+    """Fetch repository data using GitHub API
+    
+    Args:
+        owner: GitHub username
+        repo: Repository name
+        search_fallback: If True, search all repos when specific repo not found
+    
+    Returns:
+        Dictionary with repo data or None
+    """
     try:
         g = Github(settings.GITHUB_TOKEN)
         repository = g.get_repo(f"{owner}/{repo}")
@@ -80,11 +177,27 @@ def fetch_repo_data(owner: str, repo: str):
         return repo_data
     
     except Exception as e:
+        error_msg = str(e)
+        
+        # If repo not found and fallback is enabled, search all repos
+        if search_fallback and ("404" in error_msg or "Not Found" in error_msg):
+            print(f"Repository '{repo}' not found. Searching all public repos for '{owner}'...")
+            matched_repo = search_user_repos(owner, repo)
+            
+            if matched_repo:
+                print(f"Found similar repo: {matched_repo.name}")
+                # Recursively call fetch_repo_data with the matched repo, but disable fallback
+                return fetch_repo_data(owner, matched_repo.name, search_fallback=False)
+        
         print(f"Error fetching repo data: {e}")
         return None
 
 def github_agent(state: State):
     """GitHub repository analyzer agent"""
+    
+    # Check if GitHub token is configured
+    if not settings.GITHUB_TOKEN:
+        return {"messages": [{"role": "assistant", "content": "❌ GitHub token is not configured. Please set the GITHUB_TOKEN environment variable."}]}
     
     # Get the last user message
     last_message = state["messages"][-1]
@@ -93,17 +206,37 @@ def github_agent(state: State):
     else:
         user_content = last_message.content
     
-    # Extract GitHub URL
+    # Extract GitHub URL first
     github_url, owner, repo = extract_github_url(user_content)
     
+    # If no URL found, try to extract from natural language
     if not github_url:
-        return {"messages": [{"role": "assistant", "content": "Please provide a valid GitHub repository URL (e.g., https://github.com/owner/repo)"}]}
+        owner, repo = extract_owner_and_repo(user_content)
+        if not owner or not repo:
+            return {"messages": [{"role": "assistant", "content": "Please provide a valid GitHub repository URL (e.g., https://github.com/owner/repo) or mention the owner and repository name clearly (e.g., 'get info on mohitjoer/freelance-web' or 'repo of mohitjoer and repo name freelance-web')"}]}
     
-    # Fetch repository data
-    repo_data = fetch_repo_data(owner, repo)
+    # Fetch repository data (with fallback search enabled)
+    repo_data = fetch_repo_data(owner, repo, search_fallback=True)
     
     if not repo_data:
-        return {"messages": [{"role": "assistant", "content": f"❌ Unable to fetch data for repository: {github_url}\n\nPlease check if:\n- The repository exists\n- The repository is public\n- Your GitHub token has proper permissions"}]}
+        repo_ref = github_url if github_url else f"{owner}/{repo}"
+        # Try to provide helpful suggestions
+        try:
+            g = Github(settings.GITHUB_TOKEN)
+            user_obj = g.get_user(owner)
+            repos = list(user_obj.get_repos(type="public"))
+            
+            if repos:
+                repo_list = "\n- ".join([r.name for r in repos[:10]])
+                suggestions = f"\n\n💡 **Available repositories for {owner}:**\n- {repo_list}"
+                if len(repos) > 10:
+                    suggestions += f"\n... and {len(repos) - 10} more"
+            else:
+                suggestions = f"\n\n💡 No public repositories found for user '{owner}'"
+        except Exception as e:
+            suggestions = f"\n\n💡 Unable to list repositories: {str(e)}"
+        
+        return {"messages": [{"role": "assistant", "content": f"❌ Unable to fetch data for repository: {repo_ref}\n\nPlease check if:\n- The repository name is correct (you provided: '{repo}')\n- The owner name is correct (you provided: '{owner}')\n- The repository is public\n- Your GitHub token has proper permissions{suggestions}"}]}
     
     # Create detailed context for LLM
     repo_context = f"""
