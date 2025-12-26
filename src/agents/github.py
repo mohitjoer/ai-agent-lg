@@ -206,11 +206,17 @@ def github_agent(state: State):
     else:
         user_content = last_message.content
     
-    # Extract GitHub URL first
-    github_url, owner, repo = extract_github_url(user_content)
+    # If classifier provided identifiers, use them
+    owner = state.get("username") or None
+    repo = state.get("repo_name") or None
+
+    # Extract GitHub URL first (may overwrite owner/repo if URL present)
+    github_url, url_owner, url_repo = extract_github_url(user_content)
+    if url_owner and url_repo:
+        owner, repo = url_owner, url_repo
     
     # If no URL found, try to extract from natural language
-    if not github_url:
+    if not github_url and (not owner or not repo):
         owner, repo = extract_owner_and_repo(user_content)
         if not owner or not repo:
             return {"messages": [{"role": "assistant", "content": "Please provide a valid GitHub repository URL (e.g., https://github.com/owner/repo) or mention the owner and repository name clearly (e.g., 'get info on mohitjoer/freelance-web' or 'repo of mohitjoer and repo name freelance-web')"}]}

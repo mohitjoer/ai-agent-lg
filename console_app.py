@@ -60,8 +60,15 @@ def run_chatbot():
         print("\n⏳ Processing...\n")
         
         try:
-            # Invoke the graph
-            state = graph.invoke(state)
+            # Invoke the graph with LangSmith run config for better tracing
+            state = graph.invoke(
+                state,
+                config={
+                    "run_name": "console_app",
+                    "tags": ["console", "pr-impressionable-suppression-36"],
+                    "metadata": {"session_id": session_id},
+                },
+            )
             
             # Save to database
             db_client.save_conversation(state, session_id)

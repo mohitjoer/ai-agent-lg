@@ -76,7 +76,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action(action="typing")
     
     try:
-        result = graph.invoke(state)
+        result = graph.invoke(
+            state,
+            config={
+                "run_name": "telegram_app",
+                "tags": ["telegram", "pr-impressionable-suppression-36"],
+                "metadata": {"user_id": user_id},
+            },
+        )
         user_sessions[user_id] = result
         db_client.save_conversation(result, SINGLE_SESSION_ID)
         

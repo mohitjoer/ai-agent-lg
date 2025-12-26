@@ -173,8 +173,8 @@ def github_user_agent(state: State):
     else:
         user_content = last_message.content
     
-    # Extract GitHub username
-    username = extract_github_username(user_content)
+    # Prefer classifier-provided username, fallback to extraction
+    username = state.get("username") or extract_github_username(user_content)
     
     if not username:
         return {"messages": [{"role": "assistant", "content": "Please provide a valid GitHub username or profile URL (e.g., `octocat` or `https://github.com/octocat`)"}]}

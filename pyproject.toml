@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "google-generativeai>=0.8.5",
     "ipykernel>=7.1.0",
+    "langchain-openai>=1.0.3",
     "langchain[openai]>=1.0.7",
     "langgraph>=1.0.3",
     "pygithub>=2.8.1",
